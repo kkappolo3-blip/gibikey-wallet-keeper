@@ -1,29 +1,68 @@
-import { useState } from "react";
-import { Plus, Search, ShieldCheck, KeyRound } from "lucide-react";
+import { useState, useRef } from "react";
+import { Plus, Search, ShieldCheck, KeyRound, Download, Upload } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { toast } from "sonner";
 import { useAccounts } from "@/hooks/useAccounts";
 import AccountCard from "@/components/AccountCard";
 import AddAccountDialog from "@/components/AddAccountDialog";
 import logo from "@/assets/logo.png";
 
 export default function Index() {
-  const { accounts, allCount, search, setSearch, addAccount, deleteAccount } = useAccounts();
+  const { accounts, allCount, search, setSearch, addAccount, deleteAccount, exportAccounts, importAccounts } = useAccounts();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const count = await importAccounts(file);
+      toast.success(`${count} akun berhasil diimport!`);
+    } catch (err: any) {
+      toast.error(err.message || "Gagal import");
+    }
+    e.target.value = "";
+  };
 
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
       <header className="bg-primary px-5 pt-8 pb-10 rounded-b-[2rem] shadow-lg relative overflow-hidden">
-        {/* Decorative circles */}
         <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-accent/30" />
         <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full bg-accent/20" />
 
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-4">
-            <img src={logo} alt="Gibikey Studio" width={44} height={44} className="drop-shadow-md" />
-            <div>
-              <h1 className="text-lg font-extrabold text-primary-foreground leading-tight">Gibikey Studio</h1>
-              <p className="text-xs font-semibold text-primary-foreground/70">Password Manager</p>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <img src={logo} alt="Gibikey Studio" width={44} height={44} className="drop-shadow-md" />
+              <div>
+                <h1 className="text-lg font-extrabold text-primary-foreground leading-tight">Gibikey Studio</h1>
+                <p className="text-xs font-semibold text-primary-foreground/70">Password Manager</p>
+              </div>
+            </div>
+            {/* Export/Import buttons */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={exportAccounts}
+                className="w-9 h-9 rounded-xl bg-primary-foreground/10 flex items-center justify-center text-primary-foreground hover:bg-primary-foreground/20 transition-colors"
+                title="Export backup"
+              >
+                <Download size={18} />
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-9 h-9 rounded-xl bg-primary-foreground/10 flex items-center justify-center text-primary-foreground hover:bg-primary-foreground/20 transition-colors"
+                title="Import backup"
+              >
+                <Upload size={18} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImport}
+                className="hidden"
+              />
             </div>
           </div>
 
@@ -97,14 +136,12 @@ export default function Index() {
         <Plus size={26} strokeWidth={3} />
       </motion.button>
 
-      {/* Dialog */}
       <AddAccountDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onAdd={addAccount}
       />
 
-      {/* Footer */}
       <p className="text-center text-[10px] text-muted-foreground mt-10 font-semibold">
         © 2026 Gibikey Studio · Data tersimpan di perangkatmu
       </p>

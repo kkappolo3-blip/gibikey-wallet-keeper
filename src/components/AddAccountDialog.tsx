@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 interface Props {
   open: boolean;
   onClose: () => void;
-  onAdd: (data: { platform: string; username: string; password: string; notes?: string }) => void;
+  onAdd: (data: { platform: string; username: string; password: string; url?: string; notes?: string }) => void;
 }
 
 const quickPlatforms = ["Google", "Facebook", "Instagram", "TikTok", "Discord", "Twitter", "GitHub", "Email"];
@@ -14,19 +14,27 @@ export default function AddAccountDialog({ open, onClose, onAdd }: Props) {
   const [platform, setPlatform] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [url, setUrl] = useState("");
   const [notes, setNotes] = useState("");
 
   const reset = () => {
     setPlatform("");
     setUsername("");
     setPassword("");
+    setUrl("");
     setNotes("");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!platform.trim() || !username.trim() || !password.trim()) return;
-    onAdd({ platform: platform.trim(), username: username.trim(), password: password.trim(), notes: notes.trim() || undefined });
+    if (!platform.trim()) return;
+    onAdd({
+      platform: platform.trim(),
+      username: username.trim(),
+      password: password.trim(),
+      url: url.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
     reset();
     onClose();
   };
@@ -35,7 +43,6 @@ export default function AddAccountDialog({ open, onClose, onAdd }: Props) {
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -43,7 +50,6 @@ export default function AddAccountDialog({ open, onClose, onAdd }: Props) {
             onClick={onClose}
             className="fixed inset-0 bg-foreground/40 z-50"
           />
-          {/* Sheet */}
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
@@ -52,7 +58,6 @@ export default function AddAccountDialog({ open, onClose, onAdd }: Props) {
             className="fixed bottom-0 inset-x-0 z-50 bg-card rounded-t-3xl shadow-2xl max-h-[90vh] overflow-auto"
           >
             <div className="p-5">
-              {/* Handle */}
               <div className="w-10 h-1 rounded-full bg-border mx-auto mb-4" />
 
               <div className="flex items-center justify-between mb-5">
@@ -62,7 +67,6 @@ export default function AddAccountDialog({ open, onClose, onAdd }: Props) {
                 </button>
               </div>
 
-              {/* Quick Platform Select */}
               <div className="flex flex-wrap gap-2 mb-4">
                 {quickPlatforms.map((p) => (
                   <button
@@ -84,7 +88,7 @@ export default function AddAccountDialog({ open, onClose, onAdd }: Props) {
                 <input
                   value={platform}
                   onChange={(e) => setPlatform(e.target.value)}
-                  placeholder="Platform (misal: Google)"
+                  placeholder="Platform (wajib)"
                   className="w-full px-4 py-3 rounded-xl bg-secondary text-sm font-semibold placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   maxLength={50}
                   required
@@ -92,19 +96,25 @@ export default function AddAccountDialog({ open, onClose, onAdd }: Props) {
                 <input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Username / Email"
+                  placeholder="Username / Email (opsional)"
                   className="w-full px-4 py-3 rounded-xl bg-secondary text-sm font-semibold placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   maxLength={100}
-                  required
                 />
                 <input
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
+                  placeholder="Password (opsional)"
                   type="password"
                   className="w-full px-4 py-3 rounded-xl bg-secondary text-sm font-semibold placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   maxLength={200}
-                  required
+                />
+                <input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="URL / Link (opsional)"
+                  type="url"
+                  className="w-full px-4 py-3 rounded-xl bg-secondary text-sm font-semibold placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  maxLength={500}
                 />
                 <textarea
                   value={notes}

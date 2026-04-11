@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff, Copy, Trash2, User, Lock, StickyNote } from "lucide-react";
+import { Eye, EyeOff, Copy, Trash2, User, Lock, StickyNote, Link as LinkIcon, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import type { Account } from "@/hooks/useAccounts";
@@ -26,6 +26,14 @@ function getPlatformColor(platform: string) {
     if (key.includes(k)) return v;
   }
   return "bg-primary";
+}
+
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
 }
 
 export default function AccountCard({ account, onDelete }: Props) {
@@ -60,36 +68,86 @@ export default function AccountCard({ account, onDelete }: Props) {
       {/* Body */}
       <div className="p-4 space-y-3">
         {/* Username */}
-        <div className="flex items-center gap-2">
-          <User size={16} className="text-muted-foreground shrink-0" />
-          <span className="text-sm font-semibold truncate flex-1">{account.username}</span>
-          <button
-            onClick={() => copyToClipboard(account.username, "Username")}
-            className="text-muted-foreground hover:text-primary transition-colors"
-          >
-            <Copy size={14} />
-          </button>
-        </div>
+        {account.username && (
+          <div className="flex items-center gap-2">
+            <User size={16} className="text-muted-foreground shrink-0" />
+            <span className="text-sm font-semibold truncate flex-1">{account.username}</span>
+            <button
+              onClick={() => copyToClipboard(account.username, "Username")}
+              className="text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Copy size={14} />
+            </button>
+          </div>
+        )}
 
         {/* Password */}
-        <div className="flex items-center gap-2">
-          <Lock size={16} className="text-muted-foreground shrink-0" />
-          <span className="text-sm font-mono flex-1 truncate">
-            {showPw ? account.password : "••••••••"}
-          </span>
-          <button
-            onClick={() => setShowPw(!showPw)}
-            className="text-muted-foreground hover:text-primary transition-colors"
-          >
-            {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
-          <button
-            onClick={() => copyToClipboard(account.password, "Password")}
-            className="text-muted-foreground hover:text-primary transition-colors"
-          >
-            <Copy size={14} />
-          </button>
-        </div>
+        {account.password && (
+          <div className="flex items-center gap-2">
+            <Lock size={16} className="text-muted-foreground shrink-0" />
+            <span className="text-sm font-mono flex-1 truncate">
+              {showPw ? account.password : "••••••••"}
+            </span>
+            <button
+              onClick={() => setShowPw(!showPw)}
+              className="text-muted-foreground hover:text-primary transition-colors"
+            >
+              {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+            <button
+              onClick={() => copyToClipboard(account.password, "Password")}
+              className="text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Copy size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* URL with preview */}
+        {account.url && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <LinkIcon size={16} className="text-muted-foreground shrink-0" />
+              <a
+                href={account.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold text-primary truncate flex-1 hover:underline"
+              >
+                {getDomain(account.url)}
+              </a>
+              <a
+                href={account.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                <ExternalLink size={14} />
+              </a>
+            </div>
+            {/* Link Preview */}
+            <a
+              href={account.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-xl overflow-hidden border border-border bg-secondary hover:opacity-90 transition-opacity"
+            >
+              <img
+                src={`https://api.microlink.io/?url=${encodeURIComponent(account.url)}&screenshot=true&meta=false&embed=screenshot.url`}
+                alt={`Preview ${getDomain(account.url)}`}
+                className="w-full h-32 object-cover object-top"
+                loading="lazy"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+              <div className="px-3 py-2">
+                <p className="text-xs font-bold text-foreground truncate">{getDomain(account.url)}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{account.url}</p>
+              </div>
+            </a>
+          </div>
+        )}
 
         {/* Notes */}
         {account.notes && (
@@ -97,6 +155,11 @@ export default function AccountCard({ account, onDelete }: Props) {
             <StickyNote size={14} className="text-muted-foreground shrink-0 mt-0.5" />
             <p className="text-xs text-muted-foreground leading-relaxed">{account.notes}</p>
           </div>
+        )}
+
+        {/* Empty state */}
+        {!account.username && !account.password && !account.url && !account.notes && (
+          <p className="text-xs text-muted-foreground italic">Tidak ada detail</p>
         )}
       </div>
     </motion.div>
