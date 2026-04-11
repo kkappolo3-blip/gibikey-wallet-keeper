@@ -5,6 +5,7 @@ export interface Account {
   platform: string;
   username: string;
   password: string;
+  url?: string;
   notes?: string;
   createdAt: number;
 }
@@ -49,11 +50,56 @@ export function useAccounts() {
     );
   }, []);
 
+  const exportAccounts = useCallback(() => {
+    const json = JSON.stringify(accounts, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gibikey-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [accounts]);
+
+  const importAccounts = useCallback((file: File) => {
+    return new Promise<number>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target?.result as string);
+          if (!Array.isArray(data)) throw new Error("Invalid format");
+          const valid = data.filter(
+            (item: any) => item.platform && typeof item.platform === "string"
+          );
+          const imported = valid.map((item: any) => ({
+            id: item.id || crypto.randomUUID(),
+            platform: item.platform,
+            username: item.username || "",
+            password: item.password || "",
+            url: item.url || "",
+            notes: item.notes || "",
+            createdAt: item.createdAt || Date.now(),
+          }));
+          setAccounts((prev) => {
+            const existingIds = new Set(prev.map((a) => a.id));
+            const newOnes = imported.filter((a: Account) => !existingIds.has(a.id));
+            return [...newOnes, ...prev];
+          });
+          resolve(imported.length);
+        } catch {
+          reject(new Error("File tidak valid"));
+        }
+      };
+      reader.onerror = () => reject(new Error("Gagal membaca file"));
+      reader.readAsText(file);
+    });
+  }, []);
+
   const filtered = accounts.filter(
     (a) =>
       a.platform.toLowerCase().includes(search.toLowerCase()) ||
       a.username.toLowerCase().includes(search.toLowerCase())
   );
 
-  return { accounts: filtered, allCount: accounts.length, search, setSearch, addAccount, deleteAccount, updateAccount };
+  return { accounts: filtered, allAccounts: accounts, allCount: accounts.length, search, setSearch, addAccount, deleteAccount, updateAccount, exportAccounts, importAccounts };
 }
