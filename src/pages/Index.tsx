@@ -68,6 +68,13 @@ export default function Index() {
               >
                 <Upload size={18} />
               </button>
+              <button
+                onClick={signOut}
+                className="w-9 h-9 rounded-xl bg-red-500/20 flex items-center justify-center text-primary-foreground hover:bg-red-500/40 transition-colors active:scale-95"
+                title="Keluar"
+              >
+                <LogOut size={18} />
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"
