@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface Account {
   id: string;
@@ -12,21 +13,6 @@ export interface Account {
   createdAt: number;
 }
 
-const STORAGE_KEY = "gibikey_accounts";
-
-function loadAccounts(): Account[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveAccounts(accounts: Account[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-}
-
 function getBackupFilename(): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -34,51 +20,96 @@ function getBackupFilename(): string {
 }
 
 export function useAccounts() {
-  const [accounts, setAccounts] = useState<Account[]>(loadAccounts);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const fetchAccounts = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setAccounts([]); setLoading(false); return; }
+
+    const { data, error } = await supabase
+      .from("accounts")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setAccounts(data.map((row: any) => ({
+        id: row.id,
+        platform: row.platform,
+        subtitle: row.subtitle || undefined,
+        username: row.username || "",
+        password: row.password || "",
+        url: row.url || undefined,
+        notes: row.notes || undefined,
+        image: row.image || undefined,
+        createdAt: new Date(row.created_at).getTime(),
+      })));
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    saveAccounts(accounts);
-  }, [accounts]);
+    fetchAccounts();
 
-  const addAccount = useCallback((data: Omit<Account, "id" | "createdAt">) => {
-    setAccounts((prev) => [
-      { ...data, id: crypto.randomUUID(), createdAt: Date.now() },
-      ...prev,
-    ]);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      fetchAccounts();
+    });
+    return () => subscription.unsubscribe();
+  }, [fetchAccounts]);
+
+  const addAccount = useCallback(async (data: Omit<Account, "id" | "createdAt">) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase.from("accounts").insert({
+      user_id: user.id,
+      platform: data.platform,
+      subtitle: data.subtitle || null,
+      username: data.username,
+      password: data.password,
+      url: data.url || null,
+      notes: data.notes || null,
+      image: data.image || null,
+    });
+
+    if (!error) fetchAccounts();
+  }, [fetchAccounts]);
+
+  const deleteAccount = useCallback(async (id: string) => {
+    const { error } = await supabase.from("accounts").delete().eq("id", id);
+    if (!error) setAccounts((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
-  const deleteAccount = useCallback((id: string) => {
-    setAccounts((prev) => prev.filter((a) => a.id !== id));
-  }, []);
+  const updateAccount = useCallback(async (id: string, data: Partial<Omit<Account, "id" | "createdAt">>) => {
+    const updateData: any = {};
+    if (data.platform !== undefined) updateData.platform = data.platform;
+    if (data.subtitle !== undefined) updateData.subtitle = data.subtitle || null;
+    if (data.username !== undefined) updateData.username = data.username;
+    if (data.password !== undefined) updateData.password = data.password;
+    if (data.url !== undefined) updateData.url = data.url || null;
+    if (data.notes !== undefined) updateData.notes = data.notes || null;
+    if (data.image !== undefined) updateData.image = data.image || null;
 
-  const updateAccount = useCallback((id: string, data: Partial<Omit<Account, "id" | "createdAt">>) => {
-    setAccounts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, ...data } : a))
-    );
-  }, []);
+    const { error } = await supabase.from("accounts").update(updateData).eq("id", id);
+    if (!error) fetchAccounts();
+  }, [fetchAccounts]);
 
   const exportAccounts = useCallback(async () => {
     const json = JSON.stringify(accounts, null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const file = new File([blob], getBackupFilename(), { type: "application/json" });
 
-    // Try Web Share API first (Android native share sheet)
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({
-          title: "Gibikey Studio Backup",
-          text: "Backup akun Gibikey Studio",
-          files: [file],
-        });
+        await navigator.share({ title: "Gibikey Studio Backup", text: "Backup akun Gibikey Studio", files: [file] });
         return;
       } catch (err: any) {
         if (err.name === "AbortError") return;
-        // Fallback to download
       }
     }
 
-    // Fallback: direct download
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -87,33 +118,34 @@ export function useAccounts() {
     URL.revokeObjectURL(url);
   }, [accounts]);
 
-  const importAccounts = useCallback((file: File) => {
+  const importAccounts = useCallback(async (file: File) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Harus login dulu");
+
     return new Promise<number>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target?.result as string);
           if (!Array.isArray(data)) throw new Error("Invalid format");
-          const valid = data.filter(
-            (item: any) => item.platform && typeof item.platform === "string"
-          );
-          const imported = valid.map((item: any) => ({
-            id: item.id || crypto.randomUUID(),
+          const valid = data.filter((item: any) => item.platform && typeof item.platform === "string");
+
+          const rows = valid.map((item: any) => ({
+            user_id: user.id,
             platform: item.platform,
-            subtitle: item.subtitle || "",
+            subtitle: item.subtitle || null,
             username: item.username || "",
             password: item.password || "",
-            url: item.url || "",
-            notes: item.notes || "",
-            image: item.image || "",
-            createdAt: item.createdAt || Date.now(),
+            url: item.url || null,
+            notes: item.notes || null,
+            image: item.image || null,
           }));
-          setAccounts((prev) => {
-            const existingIds = new Set(prev.map((a) => a.id));
-            const newOnes = imported.filter((a: Account) => !existingIds.has(a.id));
-            return [...newOnes, ...prev];
-          });
-          resolve(imported.length);
+
+          const { error } = await supabase.from("accounts").insert(rows);
+          if (error) throw error;
+
+          fetchAccounts();
+          resolve(rows.length);
         } catch {
           reject(new Error("File tidak valid"));
         }
@@ -121,7 +153,7 @@ export function useAccounts() {
       reader.onerror = () => reject(new Error("Gagal membaca file"));
       reader.readAsText(file);
     });
-  }, []);
+  }, [fetchAccounts]);
 
   const filtered = accounts.filter(
     (a) =>
@@ -130,5 +162,5 @@ export function useAccounts() {
       (a.subtitle || "").toLowerCase().includes(search.toLowerCase())
   );
 
-  return { accounts: filtered, allAccounts: accounts, allCount: accounts.length, search, setSearch, addAccount, deleteAccount, updateAccount, exportAccounts, importAccounts };
+  return { accounts: filtered, allAccounts: accounts, allCount: accounts.length, search, setSearch, addAccount, deleteAccount, updateAccount, exportAccounts, importAccounts, loading };
 }
